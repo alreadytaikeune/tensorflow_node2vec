@@ -22,15 +22,6 @@
 
 using namespace tensorflow;
 
-// Number of examples to precalculate.
-const int kPrecalc = 3000;
-
-
-template<typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args&&... args) {
-    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-
 
 struct VertexProperty
 {
@@ -38,29 +29,7 @@ struct VertexProperty
 };
 
 
-// template<typename _, bool b>
-// struct GraphType {};
-
-// template<typename _>
-// struct GraphType<_, false>{
-//     typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, VertexProperty, boost::no_property> Graph;
-// };
-
-// template<typename _>
-// struct GraphType<_, true>{
-//     typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, VertexProperty, boost::no_property> Graph;
-// };
-
-// template <bool b> struct GraphChoice
-// {
-//     typedef GraphType<void, b> GT;
-//     typedef GT::Graph Graph;
-// };
-
-
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, VertexProperty, boost::no_property> Graph;
-
-// using namespace tensorflow::sparse;
 
 typedef struct Alias {
   std::vector<double> probas;
@@ -69,16 +38,16 @@ typedef struct Alias {
 } Alias;
 
 
-void setup_alias_vectors(Alias& alias){
+void setup_alias_vectors(Alias& alias, double norm){
     int N = alias.probas.size();
     assert(alias.probas.size() == alias.idx.size());
     alias.aliases.resize(N);
     std::queue<int> big;
     std::queue<int> small;
-    std::vector<double> alias_probas(N);
+    double f = N/norm;
     for(int i=0; i<N; i++){
-        alias_probas[i] = alias.probas[i]*N;
-        if(alias.probas[i]*N < 1.)
+        alias.probas[i] = alias.probas[i]*f;
+        if(alias.probas[i] < 1.)
           small.push(i);
         else
           big.push(i);
@@ -87,8 +56,8 @@ void setup_alias_vectors(Alias& alias){
         int s = small.front(); small.pop();
         int b = big.front(); big.pop();
         alias.aliases[s] = b;
-        double ptot = alias_probas[s]*N + alias_probas[b]*N - 1.;
-        alias_probas[b] = ptot;
+        double ptot = alias.probas[s]*N + alias.probas[b]*N - 1.;
+        alias.probas[b] = ptot;
         if(ptot < 1.){
           small.push(b);
         }
@@ -96,8 +65,6 @@ void setup_alias_vectors(Alias& alias){
           big.push(b);
         }
     }
-    for(int i = 0; i<N; i++)
-        alias.probas[i] = alias_probas[i];
 }
 
 
@@ -123,12 +90,6 @@ class Node2VecSeqOp : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("q", &q_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("directed", &directed_));
     OP_REQUIRES_OK(ctx, Init(ctx->env(), filename));
-    assert(seq_size_ >= 2);
-    mutex_lock l(mu_);
-
-    // for (int i = 0; i < kPrecalc; ++i) {
-    //   NextExample(&precalc_examples_[i].input, &precalc_examples_[i].label);
-    // }
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -159,7 +120,7 @@ class Node2VecSeqOp : public OpKernel {
   Tensor node_id_;
 
   std::vector<std::vector<int>> node_alias_;
-  std::unordered_map<int, std::unordered_map<int, Alias>> edge_alias_;
+  std::vector<std::unordered_map<int, Alias>> edge_alias_;
 
   mutex mu_;
   random::PhiloxRandom philox_ GUARDED_BY(mu_);
@@ -200,19 +161,32 @@ class Node2VecSeqOp : public OpKernel {
   }
 
   Status Init(Env* env, const string& filename) {
-    string data;
-    TF_RETURN_IF_ERROR(ReadFileToString(env, filename, &data));
-    std::istringstream data_stream;
-    data_stream.str(data);
-    Graph graph;
-    boost::dynamic_properties dp(boost::ignore_other_properties);
-    dp.property("id", boost::get(&VertexProperty::id, graph));
-    boost::read_graphml(data_stream, graph, dp);
-    int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
-    int32 nb_edges = static_cast<int32>(boost::num_edges(graph));
+    std::cout << "Init" << std::endl;
     if (p_ == 0. || q_ == 0.) {
       return errors::InvalidArgument("The parameters p and q can't be 0.");
     }
+    if (seq_size_ < 2) {
+      return errors::InvalidArgument("The sequence size must be greater than two");
+    }
+
+
+    Graph graph;
+    boost::dynamic_properties dp(boost::ignore_other_properties);
+    dp.property("id", boost::get(&VertexProperty::id, graph));
+
+    std::cout << "Reading the graph" << std::endl;
+    {
+      string data;
+      TF_RETURN_IF_ERROR(ReadFileToString(env, filename, &data));
+      std::istringstream data_stream;
+      data_stream.str(data);
+      boost::read_graphml(data_stream, graph, dp);
+    }
+    int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
+    int32 nb_edges = static_cast<int32>(boost::num_edges(graph));
+
+    std::cout << "nb vertices: " << nb_vertices << " nb edges " << nb_edges << std::endl;
+
     node_id_ = Tensor(DT_STRING, TensorShape({nb_vertices}));
     for(int i=0; i<nb_vertices; ++i){
       node_id_.flat<string>()(i) = graph[i].id;
@@ -220,6 +194,7 @@ class Node2VecSeqOp : public OpKernel {
 
 
     // ----- Computing node aliases -----
+    std::cout << "Setting node aliases" << std::endl;
     {
       int alias_idx = 0;
       node_alias_.resize(nb_vertices);
@@ -236,7 +211,11 @@ class Node2VecSeqOp : public OpKernel {
     // ----- Done -----
 
     // ----- Computing edges aliases -----
+    std::cout << "Setting edge aliases" << std::endl;
+    int total_entries = 0;
     for(int target=0; target<nb_vertices; ++target){
+        if(target % 1000 == 0)
+          std::cout << target << "/" << nb_vertices << std::endl;
         Graph::adjacency_iterator vit, vend;
         Graph::adjacency_iterator sit, send;
         std::tie(vit, vend) = boost::adjacent_vertices(target, graph);
@@ -258,14 +237,16 @@ class Node2VecSeqOp : public OpKernel {
             sum_weights += weight;
             nmap[source].probas.push_back(weight);
             nmap[source].idx.push_back(*it);
+
+            total_entries += 1;
           }
-          for(int i=0; i<nmap[source].probas.size(); i++){
-            nmap[source].probas[i] /= sum_weights;
-          }
-          setup_alias_vectors(nmap[source]);
+          setup_alias_vectors(nmap[source], sum_weights);
         }
-        edge_alias_[target] = nmap;
+        edge_alias_.push_back(nmap);
     }
+
+    std::cout << total_entries << " in the edge alias" << std::endl;
+    graph.clear();
 
     graph_size_ = nb_vertices;
     return Status::OK();
