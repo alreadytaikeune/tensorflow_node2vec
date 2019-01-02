@@ -6,16 +6,17 @@
 #include <cassert>
 #include <queue>
 
+#include <ctime>
+#include <iostream>
+
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
-#include "tensorflow/core/lib/core/stringpiece.h"
-#include "tensorflow/core/lib/gtl/map_util.h"
-#include "tensorflow/core/lib/random/distribution_sampler.h"
 #include "tensorflow/core/lib/random/philox_random.h"
 #include "tensorflow/core/lib/random/simple_philox.h"
-#include "tensorflow/core/lib/strings/str_util.h"
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/guarded_philox_random.h"
+#include "tensorflow/core/util/work_sharder.h"
+
 
 #include <boost/graph/graphml.hpp>
 #include <boost/graph/adjacency_list.hpp>
@@ -23,9 +24,13 @@
 using namespace tensorflow;
 
 
+const int PRECOMPUTE = 30000;
+const int LOW_WATER_MARK = 100;
+
+
 struct VertexProperty
 {
-    std::string id ;
+    std::string id;
 };
 
 
@@ -68,10 +73,15 @@ void setup_alias_vectors(Alias& alias, double norm){
 }
 
 
-int sample_alias(Alias& alias, random::SimplePhilox& rng_){
+double time_ms(std::clock_t start, std::clock_t end){
+  return (end - start) / (double)(CLOCKS_PER_SEC / 1000);
+}
+
+
+int sample_alias(Alias& alias, random::SimplePhilox& gen){
     int N = alias.probas.size();
-    int v = rng_.Uniform(N);
-    double x = rng_.RandDouble();
+    int v = gen.Uniform(N);
+    double x = gen.RandDouble();
     if(x < alias.probas[v]){
         return alias.idx[v];
     }
@@ -82,7 +92,7 @@ int sample_alias(Alias& alias, random::SimplePhilox& rng_){
 class Node2VecSeqOp : public OpKernel {
  public:
   explicit Node2VecSeqOp(OpKernelConstruction* ctx)
-      : OpKernel(ctx), rng_(&philox_) {
+      : OpKernel(ctx){
     string filename;
     OP_REQUIRES_OK(ctx, ctx->GetAttr("filename", &filename));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("size", &seq_size_));
@@ -90,6 +100,10 @@ class Node2VecSeqOp : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("q", &q_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("directed", &directed_));
     OP_REQUIRES_OK(ctx, Init(ctx->env(), filename));
+    auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
+    num_threads_ = worker_threads.num_threads;
+    std::cout << "num threads is " << num_threads_ << std::endl;
+    guarded_philox_.Init(0, 0);
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -98,7 +112,7 @@ class Node2VecSeqOp : public OpKernel {
     Tensor walk(DT_INT32, TensorShape({seq_size_}));
     {
       mutex_lock l(mu_);
-      NextWalk(walk);
+      NextWalk(ctx, walk);
       epoch.scalar<int32>()() = current_epoch_;
       total.scalar<int32>()() = total_seq_generated_;
     }
@@ -108,6 +122,7 @@ class Node2VecSeqOp : public OpKernel {
     ctx->set_output(3, total);
 
   }
+
 
  private:
 
@@ -121,60 +136,106 @@ class Node2VecSeqOp : public OpKernel {
 
   std::vector<std::vector<int>> node_alias_;
   std::vector<std::unordered_map<int, Alias>> edge_alias_;
-
+  std::vector<int32> valid_nodes_;
   mutex mu_;
-  random::PhiloxRandom philox_ GUARDED_BY(mu_);
-  random::SimplePhilox rng_ GUARDED_BY(mu_);
+  mutex shard_mutex_;
+  GuardedPhiloxRandom guarded_philox_ GUARDED_BY(mu_);
   int32 current_epoch_ GUARDED_BY(mu_) = -1;
   int32 total_seq_generated_ GUARDED_BY(mu_) = 0;
   int32 current_node_idx_ GUARDED_BY(mu_) = 0;
+  Tensor precomputed_walks;
+  int cur_walk_idx;
+  int write_walk_idx;
+  int num_threads_;
 
 
-  void NextWalk(Tensor& walk) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    if(current_node_idx_ == 0)
-      current_epoch_++;
-    int start = current_node_idx_;
-    int counter=0;
-    while(node_alias_[start].size()==0 && counter < graph_size_){
-      start++; start%=graph_size_; counter++;
-      if(start==0)
-        current_epoch_++;
+  void NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+    int available = (write_walk_idx + PRECOMPUTE - cur_walk_idx) % PRECOMPUTE;
+    if(available <= LOW_WATER_MARK){
+      int start = write_walk_idx;
+      int end = cur_walk_idx-1;
+      if(end <= start)
+        end += PRECOMPUTE;
+      auto fn = [this](int64 s, int64 e){
+        PrecomputeWalks(write_walk_idx+s, write_walk_idx+e);
+      };
+      // std::cout << "Sharding work start " << start << " end " << end << std::endl;
+
+      auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
+      // worker_threads.num_threads
+
+      Shard(1, worker_threads.workers,
+            end-start, 20000000,
+            fn);
+      write_walk_idx+=(end-start);
+      write_walk_idx%=PRECOMPUTE;
     }
-    current_node_idx_ = (start+1)%graph_size_;
+
+    auto w = walk.flat<int32>();
+    auto pre = precomputed_walks.matrix<int32>().chip<0>(cur_walk_idx);
+    w=pre;
+
+    cur_walk_idx++;
     total_seq_generated_++;
-    if(node_alias_[start].size()==0){
-      throw new std::exception();
+    cur_walk_idx%=PRECOMPUTE;
+    current_epoch_ = total_seq_generated_/valid_nodes_.size();
+  }
+
+
+  void PrecomputeWalks(int start_idx, int end_idx){
+    random::PhiloxRandom phi;
+    std::vector<int32> starts;
+    int N = valid_nodes_.size(); // Precompute once and for all?
+    {
+      mutex_lock l(shard_mutex_);
+      phi = guarded_philox_.ReserveSamples128((end_idx-start_idx) + seq_size_*2);
+      for(int i=start_idx; i<end_idx; i++){
+        starts.push_back(valid_nodes_[current_node_idx_]);
+        current_node_idx_++;
+        current_node_idx_%=N;
+      }
     }
     
-    // sample first neighbor
-    int i=rng_.Uniform(node_alias_[start].size());
-    int from_node = node_alias_[start][i];
-    int prev_node = start;
-    auto w = walk.flat<int32>();
-    w(0) = start; w(1) = from_node;
+    random::SimplePhilox gen(&phi);
+    for(int i=start_idx; i<end_idx; i++){
+      PrecomputeWalk(i%PRECOMPUTE, starts[i-start_idx], gen);
+    }
+  }
+
+  void PrecomputeWalk(int walk_idx, int start_node, random::SimplePhilox& gen){
+    int i=gen.Uniform(node_alias_[start_node].size());
+    int from_node = node_alias_[start_node][i];
+    int prev_node = start_node;
+    auto w = precomputed_walks.matrix<int32>();
+    w(walk_idx, 0) = start_node;
+    w(walk_idx, 1) = from_node;
+    //w[1] = from_node;
     for(int k=2; k < seq_size_; k++){
         Alias* a = &edge_alias_[from_node][prev_node];
-        int next_node = sample_alias(*a, rng_);
-        w(k) = (int32) next_node;
+        int next_node = sample_alias(*a, gen);
+        w(walk_idx, k) = (int32) next_node;
         prev_node = from_node; from_node = next_node;
     }
   }
 
   Status Init(Env* env, const string& filename) {
-    std::cout << "Init" << std::endl;
+    // std::cout << "Init" << std::endl;
     if (p_ == 0. || q_ == 0.) {
       return errors::InvalidArgument("The parameters p and q can't be 0.");
     }
     if (seq_size_ < 2) {
       return errors::InvalidArgument("The sequence size must be greater than two");
     }
+    write_walk_idx = 0;
+    cur_walk_idx = 0;
 
+    precomputed_walks = Tensor(DT_INT32, TensorShape({PRECOMPUTE, seq_size_}));
 
     Graph graph;
     boost::dynamic_properties dp(boost::ignore_other_properties);
     dp.property("id", boost::get(&VertexProperty::id, graph));
 
-    std::cout << "Reading the graph" << std::endl;
+    // std::cout << "Reading the graph" << std::endl;
     {
       string data;
       TF_RETURN_IF_ERROR(ReadFileToString(env, filename, &data));
@@ -185,7 +246,7 @@ class Node2VecSeqOp : public OpKernel {
     int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
     int32 nb_edges = static_cast<int32>(boost::num_edges(graph));
 
-    std::cout << "nb vertices: " << nb_vertices << " nb edges " << nb_edges << std::endl;
+    // std::cout << "nb vertices: " << nb_vertices << " nb edges " << nb_edges << std::endl;
 
     node_id_ = Tensor(DT_STRING, TensorShape({nb_vertices}));
     for(int i=0; i<nb_vertices; ++i){
@@ -194,7 +255,7 @@ class Node2VecSeqOp : public OpKernel {
 
 
     // ----- Computing node aliases -----
-    std::cout << "Setting node aliases" << std::endl;
+    // std::cout << "Setting node aliases" << std::endl;
     {
       int alias_idx = 0;
       node_alias_.resize(nb_vertices);
@@ -202,16 +263,20 @@ class Node2VecSeqOp : public OpKernel {
         Graph::adjacency_iterator vit, vend;
         std::tie(vit, vend) = boost::adjacent_vertices(i, graph);
         int nb_neighbors = std::distance(vit, vend);
+        if(nb_neighbors > 0)
+          valid_nodes_.push_back(i);
         for(auto it = vit; it != vend; ++it){
           node_alias_[i].push_back(*it);
           alias_idx++;
         }
       }
     }
+
+    std::cout << "There are " << valid_nodes_.size() << " valid nodes" << std::endl;
     // ----- Done -----
 
     // ----- Computing edges aliases -----
-    std::cout << "Setting edge aliases" << std::endl;
+    // std::cout << "Setting edge aliases" << std::endl;
     int total_entries = 0;
     for(int target=0; target<nb_vertices; ++target){
         if(target % 1000 == 0)
