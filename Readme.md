@@ -34,6 +34,7 @@ with tf.Session() as sess:
 
 # TODO
 
+- Write **REAL** tests
 - Support edge weight
 - Support directed graphs
 - Improve memory efficiency
