@@ -5,6 +5,9 @@ This is the implementation of a tensorflow operation to perform node2vec sequenc
 The operation returns the vocabulary of nodes, a walk, the epoch, and the total number of sequences generated up to now. The vocabulary of nodes is a list of the nodes' id as found in the graphml file, and the list index is the node identifier in the walks. A walk is an array of integers representing the nodes. The epoch is the integer division of the number of generated sequences by the number of nodes in the graph.
 
 
+## Cooccurrences of the characters for *Les Miserables*
+
+See the script ![miserables.py](miserables.py)
 ![alt text](data/miserables.png)
 
 # Requirements
