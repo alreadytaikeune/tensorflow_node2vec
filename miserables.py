@@ -4,7 +4,7 @@ import seaborn as sns
 import numpy as np
 import tensorflow as tf
 mod = tf.load_op_library("./node2vec_ops.so")
-vocab, walk, epoch, total = mod.node2_vec_seq(
+vocab, walk, epoch, total, nb_valid = mod.node2_vec_seq(
     "data/miserables.graphml", p=1, q=2)
 
 window = 4

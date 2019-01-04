@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-  
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -124,6 +124,7 @@ class Node2VecSeqOp : public OpKernel {
   void Compute(OpKernelContext* ctx) override {
     Tensor epoch(DT_INT32, TensorShape({}));
     Tensor total(DT_INT32, TensorShape({}));
+    Tensor nb_valid_nodes(DT_INT32, TensorShape({}));
     Tensor walk(DT_INT32, TensorShape({seq_size_}));
     {
       mutex_lock l(mu_);
@@ -131,10 +132,12 @@ class Node2VecSeqOp : public OpKernel {
       epoch.scalar<int32>()() = current_epoch_;
       total.scalar<int32>()() = total_seq_generated_;
     }
+    nb_valid_nodes.scalar<int32>()() = nb_valid_nodes_;
     ctx->set_output(0, node_id_);
     ctx->set_output(1, walk);
     ctx->set_output(2, epoch);
     ctx->set_output(3, total);
+    ctx->set_output(4, nb_valid_nodes);
 
   }
 
@@ -162,6 +165,7 @@ class Node2VecSeqOp : public OpKernel {
   int cur_walk_idx;
   int write_walk_idx;
   int num_threads_;
+  int nb_valid_nodes_ = 0;
 
 
   void NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
@@ -287,7 +291,7 @@ class Node2VecSeqOp : public OpKernel {
       }
     }
 
-    std::cout << "There are " << valid_nodes_.size() << " valid nodes" << std::endl;
+    nb_valid_nodes_ = valid_nodes_.size();
     // ----- Done -----
 
     // ----- Computing edges aliases -----
