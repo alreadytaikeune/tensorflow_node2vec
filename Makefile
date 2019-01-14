@@ -11,8 +11,8 @@ test: test.o graphml.o
 %.o: %.cc
 	g++ -fPIC $(TF_CFLAGS) -O2 -std=c++11 -I/usr/local/include -c $< -o $@
 
-node2vec_ops.so: graphml.o node2vec_kernel.o node2vec_ops.o
+node2vec_ops.so: graphml.o node2vec_kernel.o node2vec_ops.o graph_kernel_base.o
 	g++ -shared -Wl,--no-as-needed $(TF_LFLAGS) -o $@ $^
 
-randwalk_ops.so: graphml.o random_walk_kernel.o random_walk_ops.o
+randwalk_ops.so: graphml.o random_walk_kernel.o random_walk_ops.o graph_kernel_base.o
 	g++ -shared -Wl,--no-as-needed $(TF_LFLAGS) -o $@ $^

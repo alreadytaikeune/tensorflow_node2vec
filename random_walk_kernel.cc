@@ -14,165 +14,45 @@ limitations under the License.
 ==============================================================================*/
 
 #include <sstream>
-#include <unordered_set>
-#include <unordered_map>
 #include <iterator>
 #include <vector>
 #include <cassert>
 #include <algorithm>
 
-#include <ctime>
 #include <iostream>
 
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/lib/random/philox_random.h"
 #include "tensorflow/core/lib/random/simple_philox.h"
-#include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/guarded_philox_random.h"
-#include "tensorflow/core/util/work_sharder.h"
 
 
 #include <boost/graph/graphml.hpp>
 #include <boost/graph/adjacency_list.hpp>
 
 #include "sampling.h"
-
+#include "graph_kernel_base.h"
 
 using namespace tensorflow;
 
 
-const int PRECOMPUTE = 30000;
-const int LOW_WATER_MARK = 100;
-
-
-struct VertexProperty
-{
-    std::string id;
-};
-
-
-struct EdgeProperty{
-  double weight;
-};
-
-typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, VertexProperty, EdgeProperty> Graph;
-
-
-double time_ms(std::clock_t start, std::clock_t end){
-  return (end - start) / (double)(CLOCKS_PER_SEC / 1000);
-}
-
-
-class RandWalkSeq : public OpKernel {
+class RandWalkSeq : public BaseGraphKernel {
  public:
   explicit RandWalkSeq(OpKernelConstruction* ctx)
-      : OpKernel(ctx){
+      : BaseGraphKernel(ctx){
     string filename;
     OP_REQUIRES_OK(ctx, ctx->GetAttr("filename", &filename));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("size", &seq_size_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("directed", &directed_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("weights_attribute", &weight_attr_name_));
     OP_REQUIRES_OK(ctx, Init(ctx->env(), filename));
-    auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
-    num_threads_ = worker_threads.num_threads;
-    guarded_philox_.Init(0, 0);
-  }
-
-  void Compute(OpKernelContext* ctx) override {
-    Tensor epoch(DT_INT32, TensorShape({}));
-    Tensor total(DT_INT32, TensorShape({}));
-    Tensor nb_valid_nodes(DT_INT32, TensorShape({}));
-    Tensor walk(DT_INT32, TensorShape({seq_size_}));
-    {
-      mutex_lock l(mu_);
-      NextWalk(ctx, walk);
-      epoch.scalar<int32>()() = current_epoch_;
-      total.scalar<int32>()() = total_seq_generated_;
-    }
-    nb_valid_nodes.scalar<int32>()() = nb_valid_nodes_;
-    ctx->set_output(0, node_id_);
-    ctx->set_output(1, walk);
-    ctx->set_output(2, epoch);
-    ctx->set_output(3, total);
-    ctx->set_output(4, nb_valid_nodes);
-
   }
 
 
- private:
-
-  int32 seq_size_ = 0;
-
-  int32 graph_size_ = 0;
+ protected:
   std::string weight_attr_name_;
-
-  bool directed_ = false;
-  Tensor node_id_;
-
   std::vector<Alias> node_alias_;
-  std::vector<int32> valid_nodes_;
-
-  mutex mu_;
-  mutex shard_mutex_;
-  GuardedPhiloxRandom guarded_philox_ GUARDED_BY(mu_);
-  int32 current_epoch_ GUARDED_BY(mu_) = -1;
-  int32 total_seq_generated_ GUARDED_BY(mu_) = 0;
-  int32 current_node_idx_ GUARDED_BY(mu_) = 0;
-  Tensor precomputed_walks;
-  int cur_walk_idx;
-  int write_walk_idx;
-  int num_threads_;
-  int nb_valid_nodes_ = 0;
-
-
-  void NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    int available = (write_walk_idx + PRECOMPUTE - cur_walk_idx) % PRECOMPUTE;
-    if(available <= LOW_WATER_MARK){
-      int start = write_walk_idx;
-      int end = cur_walk_idx-1;
-      if(end <= start)
-        end += PRECOMPUTE;
-      auto fn = [this](int64 s, int64 e){
-        PrecomputeWalks(write_walk_idx+s, write_walk_idx+e);
-      };
-
-      auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
-      // worker_threads.num_threads
-
-      Shard(1, worker_threads.workers,
-            end-start, 20000000,
-            fn);
-      write_walk_idx+=(end-start);
-      write_walk_idx%=PRECOMPUTE;
-    }
-
-    auto w = walk.flat<int32>();
-    auto pre = precomputed_walks.matrix<int32>().chip<0>(cur_walk_idx);
-    w=pre;
-
-    cur_walk_idx++;
-    total_seq_generated_++;
-    cur_walk_idx%=PRECOMPUTE;
-    current_epoch_ = total_seq_generated_/valid_nodes_.size();
-  }
-
-
-  void PrecomputeWalks(int start_idx, int end_idx){
-    random::PhiloxRandom phi = guarded_philox_.ReserveSamples128(seq_size_*2);
-    std::vector<int32> starts;
-    int N = valid_nodes_.size(); // Precompute once and for all?
-    for(int i=start_idx; i<end_idx; i++){
-      starts.push_back(valid_nodes_[current_node_idx_]);
-      current_node_idx_++;
-      current_node_idx_%=N;
-    }
-    
-    random::SimplePhilox gen(&phi);
-    for(int i=start_idx; i<end_idx; i++){
-      PrecomputeWalk(i%PRECOMPUTE, starts[i-start_idx], gen);
-    }
-  }
 
   bool HasWeights(){
     return weight_attr_name_.size() > 0;
@@ -200,7 +80,7 @@ class RandWalkSeq : public OpKernel {
   Status Init(Env* env, const string& filename) {
 
     if (seq_size_ < 2) {
-      return errors::InvalidArgument("The sequence size must be greater than two");
+      return errors::InvalidArgument("The sequence's size must be greater than two");
     }
     write_walk_idx = 0;
     cur_walk_idx = 0;
