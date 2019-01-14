@@ -18,6 +18,7 @@ epoch_ = 0
 n_epochs = 10
 with tf.Session() as sess:
     vocab_, walk_, nb_valid_ = sess.run([vocab, walk, nb_valid])
+    vocab_ = [v.decode("utf8") for v in vocab_]
     walks.append([vocab_[w] for w in walk_])
     for i, v in enumerate(vocab_):
         vocab_to_int[v] = i
@@ -42,22 +43,16 @@ def test_epoch_walks_per_start_node():
 
 def test_distrib():
     stats = {}
-    exp = {}
     for w in walks:
         for i in range(len(w)-1):
             stats.setdefault(w[i], [0]*len(graph))
-            exp.setdefault(w[i], [0]*len(graph))
             stats[w[i]][vocab_to_int[w[i+1]]] += 1
             neigh = set(graph.neighbors(w[i]))
-            N = len(neigh)
             assert w[i+1] in neigh
-            for n in neigh:
-                exp[w[i]][vocab_to_int[n]] += 1./N
 
     for w, s in stats.iteritems():
         obs = [s[vocab_to_int[n]] for n in graph.neighbors(w)]
-        e = [int(round(exp[w][vocab_to_int[n]])) for n in graph.neighbors(w)]
-        print w, obs, e
+        print(w, obs)
         _, pvalue = chisquare(obs)
         assert isnan(pvalue) or pvalue > 0.025, pvalue
 

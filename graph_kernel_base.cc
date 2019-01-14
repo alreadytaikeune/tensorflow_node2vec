@@ -43,10 +43,13 @@ void BaseGraphKernel::NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOC
 
       auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
       // worker_threads.num_threads
-
+      #ifndef NO_SHARDER
       Shard(1, worker_threads.workers,
             end-start, 20000000,
             fn);
+      #else
+        PrecomputeWalks(write_walk_idx, start, end);
+      #endif
       write_walk_idx+=(end-start);
       write_walk_idx%=PRECOMPUTE;
       current_node_idx_ += (end-start);
