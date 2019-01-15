@@ -11,7 +11,6 @@ n2v = tf.load_op_library(os.path.join(this_dir, "node2vec_ops.so"))
 def _generate_walks(n_epochs, vocab, walk, epoch, total, nb_valid):
     walks = []
     epoch_ = 0
-    n_epochs = 10
     with tf.Session() as sess:
         vocab_, walk_, nb_valid_ = sess.run([vocab, walk, nb_valid])
         vocab_ = [v.decode("utf8") for v in vocab_]

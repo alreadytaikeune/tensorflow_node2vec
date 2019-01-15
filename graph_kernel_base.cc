@@ -73,4 +73,4 @@ void BaseGraphKernel::PrecomputeWalks(int write_idx, int start_idx, int end_idx)
     for(int i=start_idx; i<end_idx; i++){
       PrecomputeWalk((write_idx+i)%PRECOMPUTE, valid_nodes_[(current_node_idx_+i)%N], gen);
     }
-  }
+}

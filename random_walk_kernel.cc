@@ -122,14 +122,17 @@ class RandWalkSeq : public BaseGraphKernel {
         valid_nodes_.push_back(i);
         double sum_weights=0;
         for(auto it = vit; it != vend; ++it){
-          auto e = boost::edge(i,*it, graph).first;
-          double weight = graph[e].weight;
-          sum_weights += weight;
-          node_alias_[i].probas.push_back(weight);
+          if(HasWeights()){
+            auto e = boost::edge(i,*it, graph).first;
+            double weight = graph[e].weight;
+            sum_weights += weight;
+            node_alias_[i].probas.push_back(weight);
+          }
           node_alias_[i].idx.push_back(*it);
           alias_idx++;
         }
-        setup_alias_vectors(node_alias_[i], sum_weights);
+        if(HasWeights())
+          setup_alias_vectors(node_alias_[i], sum_weights);
       }
     }
 
