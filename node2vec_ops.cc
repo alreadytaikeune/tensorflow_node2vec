@@ -27,6 +27,7 @@ REGISTER_OP("Node2VecSeq")
     .Attr("p: float = 1")
     .Attr("q: float = 1")
     .Attr("directed: bool = false")
+    .Attr("batchsize: int = 128")
     .Doc(R"doc(
 Parses a graph representation in graphml format and produces batches of examples
 created using skipgram sampling on walks generated using the node2vec random

@@ -2,6 +2,7 @@
 
 BaseGraphKernel::BaseGraphKernel(OpKernelConstruction* ctx)
       : OpKernel(ctx){
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("batchsize", &batchsize_));
     auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
     num_threads_ = worker_threads.num_threads;
     guarded_philox_.Init(0, 0);
@@ -12,10 +13,13 @@ void BaseGraphKernel::Compute(OpKernelContext* ctx) {
     Tensor epoch(DT_INT32, TensorShape({}));
     Tensor total(DT_INT32, TensorShape({}));
     Tensor nb_valid_nodes(DT_INT32, TensorShape({}));
-    Tensor walk(DT_INT32, TensorShape({seq_size_}));
+    Tensor walk(DT_INT32, TensorShape({batchsize_, seq_size_}));
     {
       mutex_lock l(mu_);
-      NextWalk(ctx, walk);
+      for(int i=0; i<batchsize_;i++){
+        NextWalk(ctx, walk, i);
+      }
+      
       epoch.scalar<int32>()() = current_epoch_;
       total.scalar<int32>()() = total_seq_generated_;
     }
@@ -29,7 +33,7 @@ void BaseGraphKernel::Compute(OpKernelContext* ctx) {
   }
 
 
-void BaseGraphKernel::NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+void BaseGraphKernel::NextWalk(OpKernelContext* ctx, Tensor& walk, int w_idx) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     int N = valid_nodes_.size();
     int available = (write_walk_idx + PRECOMPUTE - cur_walk_idx) % PRECOMPUTE;
     if(available <= LOW_WATER_MARK){
@@ -44,8 +48,8 @@ void BaseGraphKernel::NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOC
       auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
       // worker_threads.num_threads
       #ifndef NO_SHARDER
-      Shard(1, worker_threads.workers,
-            end-start, 20000000,
+      Shard(4, worker_threads.workers,
+            end-start, 50000,
             fn);
       #else
         PrecomputeWalks(write_walk_idx, start, end);
@@ -57,8 +61,9 @@ void BaseGraphKernel::NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOC
 
     }
 
-    auto w = walk.flat<int32>();
-    w = precomputed_walks.matrix<int32>().chip<0>(cur_walk_idx);
+    auto w = walk.matrix<int32>();
+    w.chip<0>(w_idx) = precomputed_walks.matrix<int32>().chip<0>(cur_walk_idx);
+    // w = precomputed_walks.matrix<int32>().slice<0>(cur_walk_idx, cur_walk_idx+128);
     cur_walk_idx++;
     total_seq_generated_++;
     cur_walk_idx%=PRECOMPUTE;

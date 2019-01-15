@@ -64,7 +64,7 @@ class BaseGraphKernel : public OpKernel {
   void Compute(OpKernelContext* ctx) override;
 
  protected:
-
+  int32 batchsize_ = 128;
   int32 seq_size_ = 0;
   int32 graph_size_ = 0;
   bool directed_ = false;
@@ -84,7 +84,7 @@ class BaseGraphKernel : public OpKernel {
   int nb_valid_nodes_ = 0;
 
 
-  void NextWalk(OpKernelContext* ctx, Tensor& walk) EXCLUSIVE_LOCKS_REQUIRED(mu_);
+  void NextWalk(OpKernelContext* ctx, Tensor& walk, int i) EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
 
   void PrecomputeWalks(int write_idx, int start_idx, int end_idx);

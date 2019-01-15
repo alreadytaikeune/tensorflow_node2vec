@@ -1,7 +1,6 @@
 import os
 import tensorflow as tf
 from tqdm import tqdm
-
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
 rw = tf.load_op_library(os.path.join(this_dir, "randwalk_ops.so"))
@@ -11,7 +10,10 @@ n2v = tf.load_op_library(os.path.join(this_dir, "node2vec_ops.so"))
 def _generate_walks(n_epochs, vocab, walk, epoch, total, nb_valid):
     walks = []
     epoch_ = 0
-    with tf.Session() as sess:
+    config = tf.ConfigProto()
+    config.intra_op_parallelism_threads = 4
+    config.inter_op_parallelism_threads = 4
+    with tf.Session(config=config) as sess:
         vocab_, walk_, nb_valid_ = sess.run([vocab, walk, nb_valid])
         vocab_ = [v.decode("utf8") for v in vocab_]
         walks.append(walk_)
@@ -35,7 +37,7 @@ def walks_as_words(walks, vocab):
 
 def generate_random_walks(fname, size, epochs, as_words=False):
     vocab, walk, epoch, total, nb_valid = rw.rand_walk_seq(
-        fname, size=size)
+        fname, size=size, batchsize=256)
     walks, vocab_ = _generate_walks(
         epochs, vocab, walk, epoch, total, nb_valid)
     if as_words:

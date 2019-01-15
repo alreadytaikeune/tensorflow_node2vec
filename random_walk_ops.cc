@@ -26,6 +26,7 @@ REGISTER_OP("RandWalkSeq")
     .Attr("size: int = 40")
     .Attr("directed: bool = false")
     .Attr("weights_attribute: string = ''")
+    .Attr("batchsize: int = 128")
     .Doc(R"doc(
 Parses a graph representation in graphml format and produces sequences of nodes
 following a simple random walk process.
