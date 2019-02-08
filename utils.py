@@ -3,8 +3,7 @@ import tensorflow as tf
 from tqdm import tqdm
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
-rw = tf.load_op_library(os.path.join(this_dir, "randwalk_ops.so"))
-n2v = tf.load_op_library(os.path.join(this_dir, "node2vec_ops.so"))
+mod = tf.load_op_library("../graphseq_ops.so")
 
 
 def _generate_walks(n_epochs, vocab, walk, epoch, total, nb_valid):
@@ -35,9 +34,9 @@ def walks_as_words(walks, vocab):
     return out
 
 
-def generate_random_walks(fname, size, epochs, as_words=False):
-    vocab, walk, epoch, total, nb_valid = rw.rand_walk_seq(
-        fname, size=size, batchsize=256)
+def generate_random_walks(fname, size, epochs, as_words=False, batchsize=256):
+    vocab, walk, epoch, total, nb_valid = mod.rand_walk_seq(
+        fname, size=size, batchsize=batchsize)
     walks, vocab_ = _generate_walks(
         epochs, vocab, walk, epoch, total, nb_valid)
     if as_words:
@@ -46,7 +45,7 @@ def generate_random_walks(fname, size, epochs, as_words=False):
 
 
 def generate_n2v_walks(fname, size, epochs, p=1, q=1, as_words=False):
-    vocab, walk, epoch, total, nb_valid = n2v.node2_vec_seq(
+    vocab, walk, epoch, total, nb_valid = mod.node2_vec_seq(
         fname, size=size, p=p, q=q)
     walks, vocab_ = _generate_walks(
         epochs, vocab, walk, epoch, total, nb_valid)

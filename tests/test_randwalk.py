@@ -1,64 +1,45 @@
 from math import isnan
-import tensorflow as tf
 import networkx as nx
-from tqdm import tqdm
 from collections import Counter
 from scipy.stats import chisquare
 
-
-mod = tf.load_op_library("../randwalk_ops.so")
-
-vocab, walk, epoch, total, nb_valid = mod.rand_walk_seq(
-    "../data/miserables.graphml", size=10)
-graph = nx.read_graphml("../data/miserables.graphml")
-vocab_to_int = {}
-
-walks = []
-epoch_ = 0
-n_epochs = 10
-with tf.Session() as sess:
-    vocab_, walk_, nb_valid_ = sess.run([vocab, walk, nb_valid])
-    vocab_ = [v.decode("utf8") for v in vocab_]
-    walks.append([vocab_[w] for w in walk_])
-    for i, v in enumerate(vocab_):
-        vocab_to_int[v] = i
-    print("{} words in the vocab. {} valid nodes".format(
-        len(vocab_), nb_valid_))
-    assert nb_valid_ == len(graph)
-    prev = 0
-    with tqdm(total=nb_valid_*n_epochs) as pbar:
-        while epoch_ < n_epochs:
-            walk_, epoch_, total_ = sess.run([walk, epoch, total])
-            pbar.update(total_-prev)
-            prev = total_
-            walks.append([vocab_[w] for w in walk_])
+from tensorflow_node2vec.utils import generate_random_walks
 
 
-def test_epoch_walks_per_start_node():
-    c = Counter([w[0] for w in walks])
+def test_epoch_walks_per_start_node(walks, graph, n_epochs):
+    c = Counter()
+    for wbatch in walks:
+        c.update(wbatch[:, 0])
     assert len(c) == len(graph)
     for node in c:
-        assert c[node] == n_epochs
+        assert c[node] == n_epochs or c[node] == n_epochs+1, c[node]
 
 
-def test_distrib():
+def test_distrib(graph, vocab, vocab_to_int):
     stats = {}
-    for w in walks:
-        for i in range(len(w)-1):
-            stats.setdefault(w[i], [0]*len(graph))
-            stats[w[i]][vocab_to_int[w[i+1]]] += 1
-            neigh = set(graph.neighbors(w[i]))
-            assert w[i+1] in neigh
+    for wbatch in walks:
+        for i in range(wbatch.shape[0]):
+            w = wbatch[i]
+            for i in range(len(w)-1):
+                stats.setdefault(w[i], [0]*len(graph))
+                stats[w[i]][w[i+1]] += 1
+                neigh = set(graph.neighbors(vocab[w[i]]))
+                assert vocab[w[i+1]] in neigh
 
     for w, s in stats.iteritems():
-        obs = [s[vocab_to_int[n]] for n in graph.neighbors(w)]
+        obs = [s[vocab_to_int[n]] for n in graph.neighbors(vocab[w])]
         print(w, obs)
         _, pvalue = chisquare(obs)
         assert isnan(pvalue) or pvalue > 0.025, pvalue
 
 
 if __name__ == "__main__":
-    test_epoch_walks_per_start_node()
+    n_epochs = 10
+    graph = nx.read_graphml("../data/miserables.graphml")
+    walks, vocab = generate_random_walks(
+        "../data/miserables.graphml", 10, n_epochs, batchsize=10)
+    vocab_to_int = dict(zip(vocab, range(len(vocab))))
+    test_epoch_walks_per_start_node(walks, graph, n_epochs)
     print("Test epoch OK")
-    test_distrib()
+    test_distrib(graph, vocab, vocab_to_int)
     print("Test distrib OK")

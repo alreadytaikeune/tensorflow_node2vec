@@ -15,6 +15,33 @@ limitations under the License.
 #include "tensorflow/core/framework/op.h"
 
 
+REGISTER_OP("RandWalkSeq")
+    .Output("node_id: string")
+    .Output("walks: int32")
+    .Output("nb_seqs_per_node: int32")
+    .Output("nb_seqs: int32")
+    .Output("nb_valid_nodes: int32")
+    .SetIsStateful()
+    .Attr("filename: string")
+    .Attr("size: int = 40")
+    .Attr("directed: bool = false")
+    .Attr("weights_attribute: string = ''")
+    .Attr("batchsize: int = 128")
+    .Doc(R"doc(
+Parses a graph representation in graphml format and produces sequences of nodes
+following a simple random walk process.
+
+
+node_id: A vector of words in the corpus.
+walks: The total number of walks produced so far.
+nb_seqs_per_node: The minimal number of walks produced so far. This is can be seen as the epoch.
+nb_seqs: The total number of sequences that have been generated thus far;
+filename: The path of the graphml file containing the graph.
+size: The size of the walks to generate.
+directed: is the graph directed.
+)doc");
+
+
 REGISTER_OP("Node2VecSeq")
     .Output("node_id: string")
     .Output("walks: int32")
@@ -44,4 +71,3 @@ p: node2vec p parameter.
 q: node2vec q parameter.
 directed: is the graph directed.
 )doc");
-
