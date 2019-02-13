@@ -3,7 +3,8 @@ import tensorflow as tf
 from tqdm import tqdm
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
-mod = tf.load_op_library("../graphseq_ops.so")
+lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "graphseq_ops.so")
+mod = tf.load_op_library(lib)
 
 
 def _generate_walks(n_epochs, vocab, walk, epoch, total, nb_valid):
@@ -44,9 +45,9 @@ def generate_random_walks(fname, size, epochs, as_words=False, batchsize=256):
     return walks, vocab_
 
 
-def generate_n2v_walks(fname, size, epochs, p=1, q=1, as_words=False):
+def generate_n2v_walks(fname, size, epochs, p=1, q=1, as_words=False, batchsize=256):
     vocab, walk, epoch, total, nb_valid = mod.node2_vec_seq(
-        fname, size=size, p=p, q=q)
+        fname, size=size, p=p, q=q, batchsize=256)
     walks, vocab_ = _generate_walks(
         epochs, vocab, walk, epoch, total, nb_valid)
     if as_words:

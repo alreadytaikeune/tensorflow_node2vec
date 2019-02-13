@@ -21,8 +21,8 @@ First you have to compile the op. Just run `make` (this supposes that your boost
 
 ```
 import tensorflow as tf
-mod = tf.load_op_library("./node2vec_ops.so")
-vocab, walk, epoch, total, nb_valid = mod.node2_vec_seq("path/to/your/file.graphml")
+mod = tf.load_op_library("/path/to/graphseq_ops.so")
+vocab, walk, epoch, total, nb_valid = mod.node2_vec_seq("path/to/your/file.graphml", batchsize=256, size=40)
 
 with tf.Session() as sess:
     vocab_, = sess.run([vocab])
@@ -31,6 +31,9 @@ with tf.Session() as sess:
         walk_, epoch_ = sess.run([walk, epoch])
 
 ```
+
+Here `walk_` will be a numpy array of size `(256, 40)` containing 256 walks of size 40.
+
 
 # TODO
 
