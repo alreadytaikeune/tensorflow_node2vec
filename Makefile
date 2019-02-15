@@ -1,7 +1,7 @@
 TF_CFLAGS:=$(shell python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
 TF_LFLAGS:=$(shell python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))')
-# FLAGS:=-DNO_SHARDER=1
-FLAGS:=
+FLAGS:=-DNO_SHARDER=1
+# FLAGS:=
 
 SRC_DIR=cc
 CC=g++-5

@@ -12,6 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#ifndef GRAPH_KERNEL_BASE_H
+#define GRAPH_KERNEL_BASE_H
 
 #include <sstream>
 #include <unordered_set>
@@ -36,9 +38,11 @@ limitations under the License.
 #include <boost/graph/graphml.hpp>
 #include <boost/graph/adjacency_list.hpp>
 
+#include "sampling.h"
+
 
 using namespace tensorflow;
-
+using namespace std;
 
 const int PRECOMPUTE = 30000;
 const int LOW_WATER_MARK = 100;
@@ -54,7 +58,72 @@ struct EdgeProperty{
   double weight;
 };
 
-typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS, VertexProperty, EdgeProperty> Graph;
+template<bool D>
+struct directed_type{
+  typedef boost::undirectedS type;
+};
+
+template<>
+struct directed_type<true>{
+  typedef boost::directedS type;
+};
+
+template<bool W>
+struct edge_property_type{
+  typedef boost::no_property type;
+  bool has_prop = W;
+  double EdgeProperty::* weight;
+};
+
+template<>
+struct edge_property_type<true>{
+  typedef EdgeProperty type;
+  bool has_prop = true;
+  static double EdgeProperty::* weight;
+};
+
+template<bool D>
+struct graph_types{
+  // directed_type<D>::type v;
+  typedef boost::adjacency_list<boost::vecS, boost::vecS, typename directed_type<D>::type, VertexProperty, EdgeProperty> Graph;
+  // typedef boost::adjacency_list<boost::vecS, boost::vecS> Graph;
+};
+
+
+
+template<typename G> int setup_node_alias(G graph, std::vector<Alias>& node_alias, std::vector<int32>& valid_nodes, bool has_weights) {
+  cout << "setup node alias" << endl;
+  int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
+  cout << "there are " << nb_vertices << " vertices" << endl;
+  cout << "valid nodes is at " << &valid_nodes << endl;
+  node_alias.resize(nb_vertices);
+  int alias_idx = 0;
+  for(int i=0; i<nb_vertices; ++i){
+    typename G::adjacency_iterator vit, vend;
+    std::tie(vit, vend) = boost::adjacent_vertices(i, graph);
+    int nb_neighbors = std::distance(vit, vend);
+    if(nb_neighbors > 0){
+      valid_nodes.push_back(i);
+      // cout << "pushed back " << i << " to valid nodes" << endl;
+      double sum_weights=0;
+      for(auto it = vit; it != vend; ++it){
+        if(has_weights){
+          auto e = boost::edge(i,*it, graph).first;
+          double weight = graph[e].weight;
+          sum_weights += weight;
+          node_alias[i].probas.push_back(weight);
+        }
+        node_alias[i].idx.push_back(*it);
+        alias_idx++;
+      }
+      if(has_weights)
+        setup_alias_vectors(node_alias[i], sum_weights);
+    }
+    else{
+      cout << "vertice " << i << " is invalid (no neighbors)" << endl;
+    }
+  }
+}
 
 
 class BaseGraphKernel : public OpKernel {
@@ -63,16 +132,35 @@ class BaseGraphKernel : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override;
 
+  bool HasWeights(){
+    return weight_attr_name_.size() > 0;
+  }
+
+  std::vector<Alias>* getNodeAlias();
+  std::vector<int32>* getValidNodes();
+  std::string getWeightAttrName();
+  Tensor& getNodeId();
+
+  void InitNodeId(int nb);
+
+  void NextWalk(OpKernelContext* ctx, Tensor& walk, int i) EXCLUSIVE_LOCKS_REQUIRED(mu_);
+
+  void PrecomputeWalks(int write_idx, int start_idx, int end_idx);
+  virtual Status MakeGraphTypeAndInit(Env* env, const string& filename) = 0;
+
+  virtual Status Init(Env* env, const string& filename) = 0;
+  virtual void PrecomputeWalk(int walk_idx, int start_node, random::SimplePhilox& gen) = 0;
  protected:
   int32 batchsize_ = 128;
   int32 seq_size_ = 0;
   int32 graph_size_ = 0;
   bool directed_ = false;
+  std::string weight_attr_name_;
 
   Tensor node_id_;
   std::vector<int32> valid_nodes_;
 
-  mutex mu_;
+  tensorflow::mutex mu_;
   GuardedPhiloxRandom guarded_philox_ GUARDED_BY(mu_);
   int32 current_epoch_ GUARDED_BY(mu_) = -1;
   int32 total_seq_generated_ GUARDED_BY(mu_) = 0;
@@ -83,12 +171,11 @@ class BaseGraphKernel : public OpKernel {
   int num_threads_;
   int nb_valid_nodes_ = 0;
 
+  std::vector<Alias> node_alias_;
 
-  void NextWalk(OpKernelContext* ctx, Tensor& walk, int i) EXCLUSIVE_LOCKS_REQUIRED(mu_);
-
-
-  void PrecomputeWalks(int write_idx, int start_idx, int end_idx);
-
-  virtual Status Init(Env* env, const string& filename) = 0;
-  virtual void PrecomputeWalk(int walk_idx, int start_node, random::SimplePhilox& gen) = 0;
 };
+
+
+// template<> struct AliasStructureSetter<BaseGraphKernel, typename graph_types<true>::Graph>;
+// template<> struct AliasStructureSetter<BaseGraphKernel, typename graph_types<false>::Graph>;
+#endif // GRAPH_KERNEL_BASE_H

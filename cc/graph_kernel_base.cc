@@ -1,4 +1,15 @@
+#include <iostream>
 #include "graph_kernel_base.h"
+
+
+std::vector<Alias>* BaseGraphKernel::getNodeAlias(){return &node_alias_;}
+
+std::vector<int32>* BaseGraphKernel::getValidNodes(){return &valid_nodes_;}
+
+std::string BaseGraphKernel::getWeightAttrName(){return weight_attr_name_;}
+
+Tensor& BaseGraphKernel::getNodeId(){return node_id_;}
+
 
 BaseGraphKernel::BaseGraphKernel(OpKernelConstruction* ctx)
       : OpKernel(ctx){
@@ -6,31 +17,31 @@ BaseGraphKernel::BaseGraphKernel(OpKernelConstruction* ctx)
     auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
     num_threads_ = worker_threads.num_threads;
     guarded_philox_.Init(0, 0);
-  }
+}
 
 
 void BaseGraphKernel::Compute(OpKernelContext* ctx) {
-    Tensor epoch(DT_INT32, TensorShape({}));
-    Tensor total(DT_INT32, TensorShape({}));
-    Tensor nb_valid_nodes(DT_INT32, TensorShape({}));
-    Tensor walk(DT_INT32, TensorShape({batchsize_, seq_size_}));
-    {
-      mutex_lock l(mu_);
-      for(int i=0; i<batchsize_;i++){
-        NextWalk(ctx, walk, i);
-      }
-      
-      epoch.scalar<int32>()() = current_epoch_;
-      total.scalar<int32>()() = total_seq_generated_;
+  Tensor epoch(DT_INT32, TensorShape({}));
+  Tensor total(DT_INT32, TensorShape({}));
+  Tensor nb_valid_nodes(DT_INT32, TensorShape({}));
+  Tensor walk(DT_INT32, TensorShape({batchsize_, seq_size_}));
+  {
+    mutex_lock l(mu_);
+    for(int i=0; i<batchsize_;i++){
+      NextWalk(ctx, walk, i);
     }
-    nb_valid_nodes.scalar<int32>()() = nb_valid_nodes_;
-    ctx->set_output(0, node_id_);
-    ctx->set_output(1, walk);
-    ctx->set_output(2, epoch);
-    ctx->set_output(3, total);
-    ctx->set_output(4, nb_valid_nodes);
-
+    
+    epoch.scalar<int32>()() = current_epoch_;
+    total.scalar<int32>()() = total_seq_generated_;
   }
+  nb_valid_nodes.scalar<int32>()() = nb_valid_nodes_;
+  ctx->set_output(0, node_id_);
+  ctx->set_output(1, walk);
+  ctx->set_output(2, epoch);
+  ctx->set_output(3, total);
+  ctx->set_output(4, nb_valid_nodes);
+
+}
 
 
 void BaseGraphKernel::NextWalk(OpKernelContext* ctx, Tensor& walk, int w_idx) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
@@ -79,3 +90,23 @@ void BaseGraphKernel::PrecomputeWalks(int write_idx, int start_idx, int end_idx)
       PrecomputeWalk((write_idx+i)%PRECOMPUTE, valid_nodes_[(current_node_idx_+i)%N], gen);
     }
 }
+
+void BaseGraphKernel::InitNodeId(int nb_vertices){
+  node_id_ = Tensor(DT_STRING, TensorShape({nb_vertices}));
+}
+
+// Status BaseGraphKernel::MakeGraphTypeAndInit(Env* env, const string& filename){
+//     cout << "make graph" << endl;
+//     bool has_weight = HasWeights();
+//     if(directed_){
+//       typedef graph_types<true>::Graph Graph;
+//       Graph graph;
+//       return init_with_graph<BaseGraphKernel, Graph>(this, env, filename, graph);
+//     }
+//     else{
+//       typedef graph_types<false>::Graph Graph;
+//       Graph graph;
+//       return init_with_graph<BaseGraphKernel, Graph>(this, env, filename, graph);
+//     }
+// }
+
