@@ -24,10 +24,10 @@ void setup_alias_vectors(Alias& alias, double norm){
         double ptot = alias.probas[s] + alias.probas[b] - 1.;
         alias.probas[b] = ptot;
         if(ptot < 1.){
-          small.push(b);
+            small.push(b);
         }
         else{
-          big.push(b);
+            big.push(b);
         }
     }
 }

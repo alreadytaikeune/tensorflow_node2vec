@@ -42,64 +42,62 @@ using namespace tensorflow;
 Status Node2VecSeqOp::MakeGraphTypeAndInit(Env* env, const string& filename){
     bool has_weight = HasWeights();
     if(directed_){
-      typedef graph_types<true>::Graph Graph;
-      Graph graph;
-      return init_with_graph<Node2VecSeqOp, Graph>(this, env, filename, graph);
+        typedef graph_types<true>::Graph Graph;
+        Graph graph;
+        return init_with_graph<Node2VecSeqOp, Graph>(this, env, filename, graph);
     }
     else{
-      typedef graph_types<false>::Graph Graph;
-      Graph graph;
-      return init_with_graph<Node2VecSeqOp, Graph>(this, env, filename, graph);
+        typedef graph_types<false>::Graph Graph;
+        Graph graph;
+        return init_with_graph<Node2VecSeqOp, Graph>(this, env, filename, graph);
     }
 }
 
 
 void Node2VecSeqOp::PrecomputeWalk(int walk_idx, int start_node, random::SimplePhilox& gen){
-  // First sample start node
-  Alias a = node_alias_[start_node];
-  int from_node;
-  if(HasWeights()){
-    from_node = sample_alias(a, gen);
-  }
-  else{
-    auto i = gen.Uniform(a.idx.size());
-    from_node = a.idx[i];
-  }
+    // First sample start node
+    Alias a = node_alias_[start_node];
+    int from_node;
+    if(HasWeights()){
+        from_node = sample_alias(a, gen);
+    }
+    else{
+        auto i = gen.Uniform(a.idx.size());
+        from_node = a.idx[i];
+    }
 
-  // Now sample using w2v distribution    
-  int prev_node = start_node;
-  auto w = precomputed_walks.matrix<int32>();
-  w(walk_idx, 0) = start_node;
-  w(walk_idx, 1) = from_node;
-  //w[1] = from_node;
-  for(int k=2; k < seq_size_; k++){
-      assert(edge_alias_[from_node].find(prev_node) != edge_alias_[from_node].end());
-      Alias* a = &(edge_alias_[from_node][prev_node]);
-      // cout << "prev_node " << prev_node << " from node " << from_node << endl;
-      // print_alias(*a);
-      int next_node = sample_alias(*a, gen);
-      w(walk_idx, k) = (int32) next_node;
-      prev_node = from_node; from_node = next_node;
-  }
+    // Now sample using w2v distribution    
+    int prev_node = start_node;
+    auto w = precomputed_walks.matrix<int32>();
+    w(walk_idx, 0) = start_node;
+    w(walk_idx, 1) = from_node;
+    //w[1] = from_node;
+    for(int k=2; k < seq_size_; k++){
+        assert(edge_alias_[from_node].find(prev_node) != edge_alias_[from_node].end());
+        Alias* a = &(edge_alias_[from_node][prev_node]);
+        int next_node = sample_alias(*a, gen);
+        w(walk_idx, k) = (int32) next_node;
+        prev_node = from_node; from_node = next_node;
+    }
 }
 
 Status Node2VecSeqOp::Init(Env* env, const string& filename) {
   // std::cout << "Init" << std::endl;
-  if (p_ == 0. || q_ == 0.) {
-    return errors::InvalidArgument("The parameters p and q can't be 0.");
-  }
-  if (seq_size_ < 2) {
-    return errors::InvalidArgument("The sequence size must be greater than two");
-  }
-  write_walk_idx = 0;
-  cur_walk_idx = 0;
+    if (p_ == 0. || q_ == 0.) {
+        return errors::InvalidArgument("The parameters p and q can't be 0.");
+    }
+    if (seq_size_ < 2) {
+        return errors::InvalidArgument("The sequence size must be greater than two");
+    }
+    write_walk_idx = 0;
+    cur_walk_idx = 0;
 
-  precomputed_walks = Tensor(DT_INT32, TensorShape({PRECOMPUTE, seq_size_}));
-  return MakeGraphTypeAndInit(env, filename);
+    precomputed_walks = Tensor(DT_INT32, TensorShape({PRECOMPUTE, seq_size_}));
+    return MakeGraphTypeAndInit(env, filename);
 }
 
 std::vector<std::unordered_map<int, Alias>>* Node2VecSeqOp::getEdgeAlias(){
-  return &edge_alias_;
+    return &edge_alias_;
 }
 
 

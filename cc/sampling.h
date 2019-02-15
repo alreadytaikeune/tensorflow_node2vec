@@ -12,9 +12,9 @@ using namespace tensorflow;
 
 
 typedef struct Alias {
-  std::vector<double> probas;
-  std::vector<int> aliases;
-  std::vector<int> idx;
+    std::vector<double> probas;
+    std::vector<int> aliases;
+    std::vector<int> idx;
 } Alias;
 
 
@@ -23,4 +23,5 @@ void setup_alias_vectors(Alias& alias, double norm);
 int sample_alias(Alias& alias, random::SimplePhilox& gen);
 
 void print_alias(Alias& alias);
+
 #endif  // SAMPLING_H
