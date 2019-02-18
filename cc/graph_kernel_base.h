@@ -75,7 +75,6 @@ struct graph_types{
 };
 
 
-
 template<typename G> int setup_node_alias(G graph, std::vector<Alias>& node_alias, std::vector<int32>& valid_nodes, bool has_weights) {
     int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
     node_alias.resize(nb_vertices);

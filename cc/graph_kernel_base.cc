@@ -88,12 +88,16 @@ void BaseGraphKernel::NextWalk(OpKernelContext* ctx, Tensor& walk, int w_idx) EX
 
 void BaseGraphKernel::PrecomputeWalks(int write_idx, int start_idx, int end_idx){
     int N = valid_nodes_.size();
-    random::PhiloxRandom phi = guarded_philox_.ReserveSamples128(seq_size_*2);  // thread safe
+    int reserve = seq_size_;
+    if(HasWeights())
+        reserve *= 2;
+    random::PhiloxRandom phi = guarded_philox_.ReserveSamples128(1*seq_size_);  // thread safe
     random::SimplePhilox gen(&phi);
     for(int i=start_idx; i<end_idx; i++){
         PrecomputeWalk((write_idx+i)%PRECOMPUTE, valid_nodes_[(current_node_idx_+i)%N], gen);
     }
 }
+
 
 void BaseGraphKernel::InitNodeId(int nb_vertices){
     node_id_ = Tensor(DT_STRING, TensorShape({nb_vertices}));
@@ -103,6 +107,7 @@ void BaseGraphKernel::InitNodeId(int nb_vertices){
 bool BaseGraphKernel::HasWeights(){
     return has_weights_;
 }
+
 
 void BaseGraphKernel::SetHasWeights(bool b){
     has_weights_ = b;

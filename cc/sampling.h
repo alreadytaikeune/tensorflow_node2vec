@@ -11,6 +11,8 @@
 using namespace tensorflow;
 
 
+namespace gseq{
+
 typedef struct Alias {
     std::vector<double> probas;
     std::vector<int> aliases;
@@ -23,5 +25,7 @@ void setup_alias_vectors(Alias& alias, double norm);
 int sample_alias(Alias& alias, random::SimplePhilox& gen);
 
 void print_alias(Alias& alias);
+
+} // Namespace
 
 #endif  // SAMPLING_H

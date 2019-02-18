@@ -123,8 +123,7 @@ Status read_graph(Env* env, const std::string& filename, Graph& graph, boost::dy
     data_stream.str(data);
     boost::filesystem::path path = filename;
     std::string ext = path.extension().string();
-    
-    if(ext == "graphml"){
+    if(ext == ".graphml"){
         gseq::read_graphml(data_stream, graph, dp);
     }
     else{

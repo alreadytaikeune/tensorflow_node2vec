@@ -82,6 +82,7 @@ void Node2VecSeqOp::PrecomputeWalk(int walk_idx, int start_node, random::SimpleP
     }
 }
 
+
 Status Node2VecSeqOp::Init(Env* env, const string& filename) {
   // std::cout << "Init" << std::endl;
     if (p_ == 0. || q_ == 0.) {
@@ -96,6 +97,7 @@ Status Node2VecSeqOp::Init(Env* env, const string& filename) {
     precomputed_walks = Tensor(DT_INT32, TensorShape({PRECOMPUTE, seq_size_}));
     return MakeGraphTypeAndInit(env, filename);
 }
+
 
 std::vector<std::unordered_map<int, Alias>>* Node2VecSeqOp::getEdgeAlias(){
     return &edge_alias_;
@@ -115,6 +117,7 @@ Status RandWalkSeq::MakeGraphTypeAndInit(Env* env, const string& filename){
       return init_with_graph<RandWalkSeq, Graph>(this, env, filename, graph);
     }
 }
+
 
 void RandWalkSeq::PrecomputeWalk(int walk_idx, int start_node, random::SimplePhilox& gen){
   int node = start_node;

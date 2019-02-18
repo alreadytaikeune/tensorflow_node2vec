@@ -28,16 +28,19 @@ def test_distrib(graph, vocab, vocab_to_int):
 
     for w, s in stats.iteritems():
         obs = [s[vocab_to_int[n]] for n in graph.neighbors(vocab[w])]
+        if(len(obs) == 1):
+            continue
         print(w, obs)
         _, pvalue = chisquare(obs)
+        print(pvalue)
         assert isnan(pvalue) or pvalue > 0.025, pvalue
 
 
 if __name__ == "__main__":
-    n_epochs = 10
+    n_epochs = 30
     graph = nx.read_graphml("../data/miserables.graphml")
     walks, vocab = generate_random_walks(
-        "../data/miserables.graphml", 10, n_epochs, batchsize=10)
+        "../data/miserables.graphml", 50, n_epochs, batchsize=10)
     vocab_to_int = dict(zip(vocab, range(len(vocab))))
     test_epoch_walks_per_start_node(walks, graph, n_epochs)
     print("Test epoch OK")

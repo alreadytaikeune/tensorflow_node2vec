@@ -15,6 +15,7 @@
 
 namespace gseq{
 
+
 class Node2VecSeqOp : public BaseGraphKernel {
 public:
     explicit Node2VecSeqOp(OpKernelConstruction* ctx) : BaseGraphKernel(ctx){
@@ -59,6 +60,7 @@ protected:
 template<typename T, typename G> struct AliasStructureSetter{
     void Setup(T* kernel, G& graph);
 };
+
 
 template<typename G>
 struct AliasStructureSetter<Node2VecSeqOp, G>{

@@ -23,7 +23,6 @@ void read_graph(std::string&& fname, G& g, bool graphml){
 }
 
 
-
 template<typename G>
 void test_nb_vertices_edges(G& g, int nbv, int nbe){
     int32 nb_vertices = static_cast<int32>(boost::num_vertices(g));

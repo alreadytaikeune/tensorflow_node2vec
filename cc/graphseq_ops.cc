@@ -26,7 +26,7 @@ REGISTER_OP("RandWalkSeq")
     .Attr("size: int = 40")
     .Attr("directed: bool = false")
     .Attr("weights_attribute: string = 'weight'")
-    .Attr("has_weights: sbool = false")
+    .Attr("has_weights: bool = false")
     .Attr("batchsize: int = 128")
     .Doc(R"doc(
 Parses a graph representation in graphml format and produces sequences of nodes
@@ -56,7 +56,7 @@ REGISTER_OP("Node2VecSeq")
     .Attr("p: float = 0.5")
     .Attr("q: float = 0.5")
     .Attr("weights_attribute: string = 'weight'")
-    .Attr("has_weights: sbool = false")
+    .Attr("has_weights: bool = false")
     .Attr("directed: bool = false")
     .Attr("batchsize: int = 128")
     .Doc(R"doc(

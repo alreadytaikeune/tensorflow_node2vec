@@ -3,6 +3,9 @@
 
 using namespace std;
 
+namespace gseq{
+
+
 void setup_alias_vectors(Alias& alias, double norm){
     int N = alias.probas.size();
     assert(alias.probas.size() == alias.idx.size());
@@ -32,6 +35,7 @@ void setup_alias_vectors(Alias& alias, double norm){
     }
 }
 
+
 int sample_alias(Alias& alias, random::SimplePhilox& gen){
     int N = alias.probas.size();
     int v = gen.Uniform(N);
@@ -41,6 +45,7 @@ int sample_alias(Alias& alias, random::SimplePhilox& gen){
     }
     return alias.idx[alias.aliases[v]];
 }
+
 
 void print_alias(Alias& alias){
     cout << "idx: ";
@@ -58,3 +63,5 @@ void print_alias(Alias& alias){
         cout << x << " ";
     }
 }
+
+} // Namespace
