@@ -1,19 +1,25 @@
 #include <iostream>
 #include "graph_kernel_base.h"
 
+namespace gseq{
 
 std::vector<Alias>* BaseGraphKernel::getNodeAlias(){return &node_alias_;}
 
 std::vector<int32>* BaseGraphKernel::getValidNodes(){return &valid_nodes_;}
 
-std::string BaseGraphKernel::getWeightAttrName(){return weight_attr_name_;}
+const std::string& BaseGraphKernel::getWeightAttrName(){return weight_attr_name_;}
 
 Tensor& BaseGraphKernel::getNodeId(){return node_id_;}
 
 
 BaseGraphKernel::BaseGraphKernel(OpKernelConstruction* ctx)
       : OpKernel(ctx){
+
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("size", &seq_size_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("batchsize", &batchsize_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("directed", &directed_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("weights_attribute", &weight_attr_name_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("has_weights", &has_weights_));
     auto worker_threads = *(ctx->device()->tensorflow_cpu_worker_threads());
     num_threads_ = worker_threads.num_threads;
     guarded_philox_.Init(0, 0);
@@ -92,3 +98,14 @@ void BaseGraphKernel::PrecomputeWalks(int write_idx, int start_idx, int end_idx)
 void BaseGraphKernel::InitNodeId(int nb_vertices){
     node_id_ = Tensor(DT_STRING, TensorShape({nb_vertices}));
 }
+
+
+bool BaseGraphKernel::HasWeights(){
+    return has_weights_;
+}
+
+void BaseGraphKernel::SetHasWeights(bool b){
+    has_weights_ = b;
+}
+
+} // Namespace

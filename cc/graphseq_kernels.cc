@@ -38,6 +38,7 @@ limitations under the License.
 
 using namespace tensorflow;
 
+namespace gseq{
 
 Status Node2VecSeqOp::MakeGraphTypeAndInit(Env* env, const string& filename){
     bool has_weight = HasWeights();
@@ -144,7 +145,6 @@ Status RandWalkSeq::Init(Env* env, const string& filename) {
   return MakeGraphTypeAndInit(env, filename);
 }
 
-
 // template<> Status init_with_graph<RandWalkSeq, typename graph_types<true>::Graph>;
 // template<> Status init_with_graph<RandWalkSeq, typename graph_types<false>::Graph>;
 
@@ -152,3 +152,5 @@ Status RandWalkSeq::Init(Env* env, const string& filename) {
 REGISTER_KERNEL_BUILDER(Name("RandWalkSeq").Device(DEVICE_CPU), RandWalkSeq);
 
 REGISTER_KERNEL_BUILDER(Name("Node2VecSeq").Device(DEVICE_CPU), Node2VecSeqOp);
+
+} // Namespace

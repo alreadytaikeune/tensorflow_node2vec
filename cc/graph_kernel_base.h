@@ -34,8 +34,6 @@ limitations under the License.
 #include "tensorflow/core/util/guarded_philox_random.h"
 #include "tensorflow/core/util/work_sharder.h"
 
-
-#include <boost/graph/graphml.hpp>
 #include <boost/graph/adjacency_list.hpp>
 
 #include "sampling.h"
@@ -47,6 +45,8 @@ using namespace std;
 const int PRECOMPUTE = 30000;
 const int LOW_WATER_MARK = 100;
 
+
+namespace gseq{
 
 struct VertexProperty
 {
@@ -112,13 +112,12 @@ public:
 
     void Compute(OpKernelContext* ctx) override;
 
-    bool HasWeights(){
-    return weight_attr_name_.size() > 0;
-    }
+    bool HasWeights();
+    void SetHasWeights(bool b);
 
     std::vector<Alias>* getNodeAlias();
     std::vector<int32>* getValidNodes();
-    std::string getWeightAttrName();
+    const std::string& getWeightAttrName();
     Tensor& getNodeId();
 
     void InitNodeId(int nb);
@@ -150,10 +149,12 @@ protected:
     int write_walk_idx;
     int num_threads_;
     int nb_valid_nodes_ = 0;
-
+    bool has_weights_ = false;
     std::vector<Alias> node_alias_;
 
 };
 
+
+} // Namespace
 
 #endif // GRAPH_KERNEL_BASE_H

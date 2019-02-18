@@ -9,7 +9,7 @@ CC=g++-5
 SRCS=$(wildcard cc/*.cc)
 OBJS=$(patsubst %.cc,%.o,$(SRCS))
 
-all: graphseq_ops.so
+all: libgraphseq_ops.so
 
 test: test.o graphml.o
 	$(CC) test.o graphml.o -o test
@@ -17,5 +17,5 @@ test: test.o graphml.o
 %.o: %.cc
 	$(CC) -fPIC $(TF_CFLAGS) $(FLAGS) -O2 -std=c++11 -I/usr/local/include -c $< -o $@
 
-graphseq_ops.so: $(OBJS)
-	$(CC) -shared -Wl,--no-as-needed $(TF_LFLAGS) -o $@ $^
+libgraphseq_ops.so: $(OBJS)
+	$(CC) -shared -Wl,--no-as-needed -o $@ $^ $(TF_LFLAGS) -lboost_system -lboost_filesystem 

@@ -25,7 +25,8 @@ REGISTER_OP("RandWalkSeq")
     .Attr("filename: string")
     .Attr("size: int = 40")
     .Attr("directed: bool = false")
-    .Attr("weights_attribute: string = ''")
+    .Attr("weights_attribute: string = 'weight'")
+    .Attr("has_weights: sbool = false")
     .Attr("batchsize: int = 128")
     .Doc(R"doc(
 Parses a graph representation in graphml format and produces sequences of nodes
@@ -39,6 +40,7 @@ nb_seqs: The total number of sequences that have been generated thus far;
 filename: The path of the graphml file containing the graph.
 size: The size of the walks to generate.
 directed: is the graph directed.
+weights_attribute: when reading a graph in graphml format this is the name of the edge property that contains the weight.
 )doc");
 
 
@@ -51,8 +53,10 @@ REGISTER_OP("Node2VecSeq")
     .SetIsStateful()
     .Attr("filename: string")
     .Attr("size: int = 40")
-    .Attr("p: float = 1")
-    .Attr("q: float = 1")
+    .Attr("p: float = 0.5")
+    .Attr("q: float = 0.5")
+    .Attr("weights_attribute: string = 'weight'")
+    .Attr("has_weights: sbool = false")
     .Attr("directed: bool = false")
     .Attr("batchsize: int = 128")
     .Doc(R"doc(
@@ -70,4 +74,5 @@ size: The size of the walks to generate.
 p: node2vec p parameter.
 q: node2vec q parameter.
 directed: is the graph directed.
+weights_attribute: when reading a graph in graphml format this is the name of the edge property that contains the weight.
 )doc");

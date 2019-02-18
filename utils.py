@@ -3,7 +3,7 @@ import tensorflow as tf
 from tqdm import tqdm
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
-lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "graphseq_ops.so")
+lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libgraphseq_ops.so")
 mod = tf.load_op_library(lib)
 
 

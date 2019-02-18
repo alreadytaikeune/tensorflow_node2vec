@@ -11,17 +11,17 @@
 
 #include "sampling.h"
 #include "graph_kernel_base.h"
+#include "graph_reader.h"
 
+namespace gseq{
 
 class Node2VecSeqOp : public BaseGraphKernel {
 public:
     explicit Node2VecSeqOp(OpKernelConstruction* ctx) : BaseGraphKernel(ctx){
-        string filename;
-        OP_REQUIRES_OK(ctx, ctx->GetAttr("filename", &filename));
-        OP_REQUIRES_OK(ctx, ctx->GetAttr("size", &seq_size_));
         OP_REQUIRES_OK(ctx, ctx->GetAttr("p", &p_));
         OP_REQUIRES_OK(ctx, ctx->GetAttr("q", &q_));
-        OP_REQUIRES_OK(ctx, ctx->GetAttr("directed", &directed_));
+        string filename;
+        OP_REQUIRES_OK(ctx, ctx->GetAttr("filename", &filename));
         OP_REQUIRES_OK(ctx, Init(ctx->env(), filename));
     }
 
@@ -45,9 +45,6 @@ public:
       : BaseGraphKernel(ctx){
         string filename;
         OP_REQUIRES_OK(ctx, ctx->GetAttr("filename", &filename));
-        OP_REQUIRES_OK(ctx, ctx->GetAttr("size", &seq_size_));
-        OP_REQUIRES_OK(ctx, ctx->GetAttr("directed", &directed_));
-        OP_REQUIRES_OK(ctx, ctx->GetAttr("weights_attribute", &weight_attr_name_));
         OP_REQUIRES_OK(ctx, Init(ctx->env(), filename));
     }
 
@@ -131,15 +128,8 @@ template<typename T, typename G> Status init_with_graph(T* kernel, Env* env, con
     if(kernel->HasWeights()){
         dp.property(kernel->getWeightAttrName(), boost::get(&EdgeProperty::weight, graph));
     }
-
     // std::cout << "Reading the graph" << std::endl;
-    {
-        string data;
-        TF_RETURN_IF_ERROR(ReadFileToString(env, filename, &data));
-        std::istringstream data_stream;
-        data_stream.str(data);
-        boost::read_graphml(data_stream, graph, dp);
-    }
+    read_graph(env, filename, graph, dp, kernel->HasWeights(), kernel->getWeightAttrName());
     cout << "successfully read graph" << endl;
     int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
     int32 nb_edges = static_cast<int32>(boost::num_edges(graph));
@@ -158,5 +148,7 @@ template<typename T, typename G> Status init_with_graph(T* kernel, Env* env, con
     return Status::OK();
 }
 
+
+} // Namespace
 
 #endif // GRAPHSEQ_KERNELS_H
