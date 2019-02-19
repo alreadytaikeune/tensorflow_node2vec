@@ -9,6 +9,8 @@ CC=g++-5
 SRCS=$(wildcard cc/*.cc)
 OBJS=$(patsubst %.cc,%.o,$(SRCS))
 
+.PHONY: test clean
+
 all: libgraphseq_ops.so
 
 test: test.o graphml.o
@@ -19,3 +21,7 @@ test: test.o graphml.o
 
 libgraphseq_ops.so: $(OBJS)
 	$(CC) -shared -Wl,--no-as-needed -o $@ $^ $(TF_LFLAGS) -lboost_system -lboost_filesystem 
+
+
+clean:
+	rm cc/*.o *.so

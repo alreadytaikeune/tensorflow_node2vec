@@ -134,7 +134,7 @@ template<typename T, typename G> Status init_with_graph(T* kernel, Env* env, con
     std::clock_t begin = std::clock();
     read_graph(env, filename, graph, dp, kernel->HasWeights(), kernel->getWeightAttrName());
     std::clock_t end = std::clock();
-    double elapsed_secs = double(end - begin) / std::CLOCKS_PER_SEC;
+    double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
     cout << "successfully read graph in " << elapsed_secs << " seconds." << endl;
     int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
     int32 nb_edges = static_cast<int32>(boost::num_edges(graph));
