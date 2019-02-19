@@ -1,6 +1,6 @@
 #ifndef GRAPHSEQ_KERNELS_H
 #define GRAPHSEQ_KERNELS_H
-
+#include <ctime>
 
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
@@ -131,8 +131,11 @@ template<typename T, typename G> Status init_with_graph(T* kernel, Env* env, con
         dp.property(kernel->getWeightAttrName(), boost::get(&EdgeProperty::weight, graph));
     }
     // std::cout << "Reading the graph" << std::endl;
+    std::clock_t begin = std::clock();
     read_graph(env, filename, graph, dp, kernel->HasWeights(), kernel->getWeightAttrName());
-    cout << "successfully read graph" << endl;
+    std::clock_t end = std::clock();
+    double elapsed_secs = double(end - begin) / std::CLOCKS_PER_SEC;
+    cout << "successfully read graph in " << elapsed_secs << " seconds." << endl;
     int32 nb_vertices = static_cast<int32>(boost::num_vertices(graph));
     int32 nb_edges = static_cast<int32>(boost::num_edges(graph));
     kernel->InitNodeId(nb_vertices);

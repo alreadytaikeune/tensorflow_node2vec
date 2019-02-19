@@ -26,7 +26,7 @@ def test_distrib(graph, vocab, vocab_to_int):
                 neigh = set(graph.neighbors(vocab[w[i]]))
                 assert vocab[w[i+1]] in neigh
 
-    for w, s in stats.iteritems():
+    for w, s in stats.items():
         obs = [s[vocab_to_int[n]] for n in graph.neighbors(vocab[w])]
         if(len(obs) == 1):
             continue
