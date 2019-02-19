@@ -86,9 +86,9 @@ struct AliasStructureSetter<Node2VecSeqOp, G>{
                 int source = *source_it;
                 std::tie(sit, send) = boost::adjacent_vertices(source, graph);
                 source_neighbors.insert(sit, send);
-                double sum_weights=0;
+                float sum_weights=0;
                 for(auto it = vit; it != vend; ++it){
-                    double weight = 1.;
+                    float weight = 1.;
                     if(kernel->HasWeights()){
                         auto e = boost::edge(*vit,*it, graph).first;
                         weight = graph[e].weight;

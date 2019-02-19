@@ -88,7 +88,7 @@ public:
         if(!added)
             BOOST_THROW_EXCEPTION(boost::bad_parallel_edge(u, v));
         if(has_weights)
-            m_g.set_edge_property(weight_attr_name, m_edge_idx, weight, "float");
+            m_g.set_edge_property(weight_attr_name, edge, weight, "float");
         m_edge_idx++;
     }
 

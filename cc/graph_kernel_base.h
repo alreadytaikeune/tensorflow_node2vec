@@ -55,7 +55,7 @@ struct VertexProperty
 
 
 struct EdgeProperty{
-  double weight;
+  float weight;
 };
 
 template<bool D>
@@ -86,11 +86,11 @@ template<typename G> int setup_node_alias(G graph, std::vector<Alias>& node_alia
         if(nb_neighbors > 0){
             valid_nodes.push_back(i);
             // cout << "pushed back " << i << " to valid nodes" << endl;
-            double sum_weights=0;
+            float sum_weights=0;
             for(auto it = vit; it != vend; ++it){
                 if(has_weights){
                     auto e = boost::edge(i,*it, graph).first;
-                    double weight = graph[e].weight;
+                    float weight = graph[e].weight;
                     sum_weights += weight;
                     node_alias[i].probas.push_back(weight);
                 }

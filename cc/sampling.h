@@ -14,13 +14,13 @@ using namespace tensorflow;
 namespace gseq{
 
 typedef struct Alias {
-    std::vector<double> probas;
+    std::vector<float> probas;
     std::vector<int> aliases;
     std::vector<int> idx;
 } Alias;
 
 
-void setup_alias_vectors(Alias& alias, double norm);
+void setup_alias_vectors(Alias& alias, float norm);
 
 int sample_alias(Alias& alias, random::SimplePhilox& gen);
 

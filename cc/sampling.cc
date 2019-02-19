@@ -6,13 +6,13 @@ using namespace std;
 namespace gseq{
 
 
-void setup_alias_vectors(Alias& alias, double norm){
+void setup_alias_vectors(Alias& alias, float norm){
     int N = alias.probas.size();
     assert(alias.probas.size() == alias.idx.size());
     alias.aliases.resize(N);
     std::queue<int> big;
     std::queue<int> small;
-    double f = N/norm;
+    float f = N/norm;
     for(int i=0; i<N; i++){
         alias.probas[i] = alias.probas[i]*f;
         if(alias.probas[i] < 1.)
@@ -24,7 +24,7 @@ void setup_alias_vectors(Alias& alias, double norm){
         int s = small.front(); small.pop();
         int b = big.front(); big.pop();
         alias.aliases[s] = b;
-        double ptot = alias.probas[s] + alias.probas[b] - 1.;
+        float ptot = alias.probas[s] + alias.probas[b] - 1.;
         alias.probas[b] = ptot;
         if(ptot < 1.){
             small.push(b);
