@@ -147,7 +147,6 @@ protected:
     int cur_walk_idx;
     int write_walk_idx;
     int num_threads_;
-    int nb_valid_nodes_ = 0;
     bool has_weights_ = false;
     std::vector<Alias> node_alias_;
 

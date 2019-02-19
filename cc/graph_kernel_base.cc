@@ -39,7 +39,7 @@ void BaseGraphKernel::Compute(OpKernelContext* ctx) {
         epoch.scalar<int32>()() = current_epoch_;
         total.scalar<int32>()() = total_seq_generated_;
     }
-    nb_valid_nodes.scalar<int32>()() = nb_valid_nodes_;
+    nb_valid_nodes.scalar<int32>()() = valid_nodes_.size();
     ctx->set_output(0, node_id_);
     ctx->set_output(1, walk);
     ctx->set_output(2, epoch);
