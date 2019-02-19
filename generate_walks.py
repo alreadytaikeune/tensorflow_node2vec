@@ -22,8 +22,8 @@ if __name__ == "__main__":
     else:
         walks, voc = generate_random_walks(
             args.graph, args.l, args.n, batchsize=args.b)
-    print(len(voc))
-    print(sum([w.shape[0] for w in walks]))
+    print("The vocabulary contains {} entries".format(len(voc)))
+    print("{} sequences generated ".format(sum([w.shape[0] for w in walks])))
     # with open(args.sequences, "w") as _:
     #     for walk_batch in walks:
     #         for i in range(walk_batch.shape[0]):

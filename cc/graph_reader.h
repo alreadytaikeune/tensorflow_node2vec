@@ -117,6 +117,7 @@ void read_edgelist(std::istream& data_stream, Graph& graph, boost::dynamic_prope
 
 template <typename Graph>
 Status read_graph(Env* env, const std::string& filename, Graph& graph, boost::dynamic_properties& dp, bool has_weight, const std::string& weight_attr_name){
+    assert(boost::filesystem::exists(filename) && "The input file doesn't exist");
     string data;
     TF_RETURN_IF_ERROR(ReadFileToString(env, filename, &data));
     std::istringstream data_stream;
